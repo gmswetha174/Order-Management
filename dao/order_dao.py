@@ -5,8 +5,7 @@ from entity.customer import User
 from entity.product import Product
 from entity.order import Order
 from util.db_connection import DBConnUtil
-from exceptions.exceptions import UserNotFoundException
-from exceptions.exceptions import OrderNotFoundException
+from exceptions.exceptions import UserNotFoundException, OrderNotFoundException
 
 class OrderDAO:
     def __init__(self):
@@ -17,17 +16,17 @@ class OrderDAO:
             cursor = self.connection.cursor()
 
             # Check if user exists
-            cursor.execute("SELECT * FROM user WHERE userId = %s", (user.userId,))
+            cursor.execute("SELECT * FROM User WHERE userId = %s", (user.user_id,))
             if not cursor.fetchone():
-                raise UserNotFoundException(f"User with ID {user.userId} not found.")
+                raise UserNotFoundException(f"User with ID {user.user_id} not found.")
 
             # Insert new order
-            cursor.execute("INSERT INTO `order` (userId) VALUES (%s)", (user.userId,))
+            cursor.execute("INSERT INTO Orders (userId) VALUES (%s)", (user.user_id,))
             order_id = cursor.lastrowid
 
-            # Insert into order_product
+            # Insert into Order_Product
             for pid in product_ids:
-                cursor.execute("INSERT INTO order_product (order_id, product_id) VALUES (%s, %s)", (order_id, pid))
+                cursor.execute("INSERT INTO Order_Product (orderId, productId, quantity) VALUES (%s, %s, %s)", (order_id, pid, 1))
 
             self.connection.commit()
             print(f"✅ Order {order_id} created successfully!")
@@ -35,23 +34,23 @@ class OrderDAO:
         except mysql.connector.Error as e:
             print(f"❌ Error creating order: {e}")
 
-    def cancel_order(self, userId: int, order_id: int):
+    def cancel_order(self, user_id: int, order_id: int):
         try:
             cursor = self.connection.cursor()
 
             # Check if user exists
-            cursor.execute("SELECT * FROM user WHERE userId = %s", (userId,))
+            cursor.execute("SELECT * FROM User WHERE userId = %s", (user_id,))
             if not cursor.fetchone():
-                raise UserNotFoundException(f"User with ID {userId} not found.")
+                raise UserNotFoundException(f"User with ID {user_id} not found.")
 
             # Check if order exists
-            cursor.execute("SELECT * FROM `order` WHERE order_id = %s AND userId = %s", (order_id, userId))
+            cursor.execute("SELECT * FROM Orders WHERE orderId = %s AND userId = %s", (order_id, user_id))
             if not cursor.fetchone():
-                raise OrderNotFoundException(f"Order {order_id} not found for User {userId}.")
+                raise OrderNotFoundException(f"Order {order_id} not found for User {user_id}.")
 
             # Delete order and associated products
-            cursor.execute("DELETE FROM order_product WHERE order_id = %s", (order_id,))
-            cursor.execute("DELETE FROM `order` WHERE order_id = %s", (order_id,))
+            cursor.execute("DELETE FROM Order_Product WHERE orderId = %s", (order_id,))
+            cursor.execute("DELETE FROM Orders WHERE orderId = %s", (order_id,))
             self.connection.commit()
 
             print(f"🗑️ Order {order_id} cancelled successfully!")
@@ -63,13 +62,13 @@ class OrderDAO:
         try:
             cursor = self.connection.cursor(dictionary=True)
             query = """
-                SELECT o.order_id, p.product_id, p.product_name, p.price 
-                FROM `order` o 
-                JOIN order_product op ON o.order_id = op.order_id
-                JOIN product p ON op.product_id = p.product_id
+                SELECT o.orderId, p.productId, p.productName, p.price 
+                FROM Orders o 
+                JOIN Order_Product op ON o.orderId = op.orderId
+                JOIN Product p ON op.productId = p.productId
                 WHERE o.userId = %s
             """
-            cursor.execute(query, (user.userId,))
+            cursor.execute(query, (user.user_id,))
             return cursor.fetchall()
 
         except mysql.connector.Error as e:
